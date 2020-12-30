@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-api
+  labels:
+    {{- include "monocle.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.monocleApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "monocle.api.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "monocle.api.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: {{ .Chart.Name }}-api
+          image: "{{ .Values.monocleApi.image.repository }}:{{ .Values.monocleApi.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.monocleApi.image.pullPolicy }}
+          args:
+            - uwsgi
+            - --uid
+            - guest
+            - --gid
+            - nogroup
+            - --http
+            - :9876
+            - --socket
+            - :9877
+            - --manage-script-name
+            - --mount
+            - /app=monocle.webapp:app
+          env:
+            - name: ALLOW_ORIGIN
+              value: '*'
+            - name: CLIENT_ID
+            - name: CLIENT_SECRET
+            - name: CONFIG
+              value: /etc/monocle/config.yaml
+            - name: ELASTIC_CONN
+              value: elasticsearch-master.{{ .Release.Namespace }}.svc.cluster.local:9200
+            - name: REDIRECT_URL
+              value: http://localhost:9876/api/0/authorize
+            - name: WEB_URL
+              value: http://localhost:3000
+          ports:
+            - containerPort: 9876
+            - containerPort: 9877
+          resources:
+            {{- toYaml .Values.monocleApi.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /etc/monocle
+              name: monocle-config
+              readOnly: true
+      volumes:
+        - name: monocle-config
+          secret:
+            secretName: monocle-config
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"

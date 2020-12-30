@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-crawler
+  labels:
+    {{- include "monocle.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.monocleCrawler.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "monocle.crawler.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "monocle.crawler.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: {{ .Chart.Name }}-crawler
+          image: "{{ .Values.monocleCrawler.image.repository }}:{{ .Values.monocleCrawler.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.monocleCrawler.image.pullPolicy }}
+          args:
+            - monocle
+            - --elastic-conn
+            - elasticsearch-master.{{ .Release.Namespace }}.svc.cluster.local:9200
+            - crawler
+            - --config
+            - /etc/monocle/config.yaml
+          env:
+            - name: APP_ID
+            - name: APP_KEY_PATH
+              value: /etc/monocle/app_key.rsa
+          resources:
+            {{- toYaml .Values.monocleCrawler.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /etc/monocle
+              name: monocle-config
+              readOnly: true
+            - mountPath: /var/lib/crawler
+              name: crawler-storage
+      volumes:
+        - name: monocle-config
+          secret:
+            secretName: monocle-config
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: crawler-storage
+          persistentVolumeClaim:
+            claimName: crawler-storage

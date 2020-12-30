@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-web
+  labels:
+    {{- include "monocle.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.monocleWeb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "monocle.web.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "monocle.web.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: {{ .Chart.Name }}-web
+          image: "{{ .Values.monocleWeb.image.repository }}:{{ .Values.monocleWeb.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.monocleWeb.image.pullPolicy }}
+          env:
+            - name: REACT_APP_API_URL
+              value: http://localhost:9876
+            - name: REACT_APP_TITLE
+          ports:
+            - containerPort: 3000
+          resources:
+            {{- toYaml .Values.monocleWeb.resources | nindent 12 }}
